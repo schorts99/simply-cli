@@ -108,6 +108,11 @@ case "${1:-}" in
     esac
     ;;
 
+  config)
+    # Create a .simply/ directory and populate a config.toml
+    cmd_config
+    ;;
+
   create)
     case "${2:-}" in
       design-doc)
@@ -178,6 +183,7 @@ if [[ -n "${ZSH_VERSION-}" ]] || [[ "$SHELL" == *zsh* ]]; then
 cat > "$HOME/.local/share/simply-completion.sh" <<'COMP'
 _simply_commands=(
   'init:Initialize .ai structure'
+  'config:Create project .simply config'
   'create:Create personalized design-doc.md'
   'sync:Sync configs to AI tools'
   'status:Show current AI config'
@@ -250,7 +256,7 @@ _simply_completions() {
 
   COMPREPLY=(
     $(compgen -W \
-      "init create sync status doctor update uninstall version help" \
+      "init config create sync status doctor update uninstall version help" \
       -- "$cur")
   )
 }

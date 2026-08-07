@@ -6,6 +6,7 @@ Usage: simply <command> [options]
 
 Commands:
   init ai                  Initialize .ai/ structure
+  config                   Create .simply/ and a default config.toml in the project
   create design-doc        Create personalized design-doc.md
   sync ai [--dry-run]      Sync configs to AI tools
   status                   Show current AI config status

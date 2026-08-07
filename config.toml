@@ -1,0 +1,22 @@
+version = 1
+
+[project]
+name = "my-project"
+
+[[skills]]
+name = "ddd"
+
+[skills.source]
+type = "git"
+url = "https://github.com/org/ai-skills"
+path = "ddd"
+ref = "main"
+
+[[skills]]
+name = "testing"
+
+[skills.source]
+type = "git"
+url = "https://github.com/org/testing-skills"
+path = "testing"
+ref = "v1.0.0"
