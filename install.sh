@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-SIMPLY_VERSION="v1.4.0"
+SIMPLY_VERSION="v1.5.0"
 
 mkdir -p \
   "$HOME/.local/bin" \
@@ -68,7 +68,7 @@ load_config() {
     "cursor:.cursor"
     "claude:.claude"
     "copilot:.github"
-    "gemini:GEMINI.md"
+    "antigravity:ANTIGRAVITY.md"
     "codex:AGENTS.md"
   )
 

@@ -52,6 +52,11 @@ $(cat "$source")
 EOF
       ;;
 
+    codex:skills)
+      # Codex .agents/skills/ uses raw markdown (no YAML frontmatter needed)
+      cp "$source" "$target"
+      ;;
+
     *)
       cp "$source" "$target"
       ;;
@@ -72,28 +77,62 @@ sync_directory() {
 
   shopt -s nullglob
 
-  for src in "$source_dir"/*.md; do
-    local name
-    local dest
+  # Handle nested skill directories (skill-name/SKILL.md format)
+  if [[ "$kind" == "skills" ]]; then
+    for skill_dir in "$source_dir"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      
+      local src="${skill_dir}SKILL.md"
+      [[ -f "$src" ]] || continue
+      
+      local name
+      local dest
+      
+      name=$(basename "$skill_dir")
+      dest="$target_dir/${name}${extension}"
+      
+      if [[ "$dry_run" == true ]]; then
+        log "[DRY-RUN] Would sync $tool $kind → $dest"
+        continue
+      fi
+      
+      backup_file "$dest"
+      
+      write_tool_file \
+        "$tool" \
+        "$kind" \
+        "$src" \
+        "$dest"
+      
+      log "$tool $kind synced → $dest"
+    done
+  else
+    # Handle flat rule files (.ai/rules/*.md format)
+    for src in "$source_dir"/*.md; do
+      [[ -f "$src" ]] || continue
+      
+      local name
+      local dest
 
-    name=$(basename "$src" .md)
-    dest="$target_dir/${name}${extension}"
+      name=$(basename "$src" .md)
+      dest="$target_dir/${name}${extension}"
 
-    if [[ "$dry_run" == true ]]; then
-      log "[DRY-RUN] Would sync $tool $kind → $dest"
-      continue
-    fi
+      if [[ "$dry_run" == true ]]; then
+        log "[DRY-RUN] Would sync $tool $kind → $dest"
+        continue
+      fi
 
-    backup_file "$dest"
+      backup_file "$dest"
 
-    write_tool_file \
-      "$tool" \
-      "$kind" \
-      "$src" \
-      "$dest"
+      write_tool_file \
+        "$tool" \
+        "$kind" \
+        "$src" \
+        "$dest"
 
-    log "$tool $kind synced → $dest"
-  done
+      log "$tool $kind synced → $dest"
+    done
+  fi
 
   shopt -u nullglob
 }
@@ -108,6 +147,10 @@ sync_directory_claude() {
 
 sync_directory_copilot() {
   sync_directory copilot "$@"
+}
+
+sync_directory_codex() {
+  sync_directory codex "$@"
 }
 
 sync_single_file() {
@@ -150,19 +193,42 @@ build_directory_index() {
 
   shopt -s nullglob
 
-  for src in "$source_dir"/*.md; do
-    local name
-    local rel
+  # Handle nested skill directories (skill-name/SKILL.md format)
+  if [[ "$title" == "Skills" ]]; then
+    for skill_dir in "$source_dir"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      [[ -f "${skill_dir}SKILL.md" ]] || continue
+      
+      local name
+      local rel
 
-    name=$(basename "$src" .md)
-    rel=".ai/$(basename "$source_dir")/$(basename "$src")"
+      name=$(basename "$skill_dir")
+      rel=".ai/$(basename "$source_dir")/$name/SKILL.md"
 
-    if [[ "$tool" == "gemini" ]]; then
-      echo "- [$name]($rel) — or \`@$rel\`"
-    else
-      echo "- [$name]($rel)"
-    fi
-  done
+      if [[ "$tool" == "antigravity" ]]; then
+        echo "- [$name]($rel) — or \`@$rel\`"
+      else
+        echo "- [$name]($rel)"
+      fi
+    done
+  else
+    # Handle flat rule files (.ai/rules/*.md format)
+    for src in "$source_dir"/*.md; do
+      [[ -f "$src" ]] || continue
+      
+      local name
+      local rel
+
+      name=$(basename "$src" .md)
+      rel=".ai/$(basename "$source_dir")/$(basename "$src")"
+
+      if [[ "$tool" == "antigravity" ]]; then
+        echo "- [$name]($rel) — or \`@$rel\`"
+      else
+        echo "- [$name]($rel)"
+      fi
+    done
+  fi
 
   shopt -u nullglob
 
@@ -252,7 +318,7 @@ cmd_sync_ai_rules() {
           "$dry_run"
         ;;
 
-      gemini|codex)
+      antigravity)
         local content
 
         content=$(cat "$main_file" 2>/dev/null || true)
@@ -273,6 +339,39 @@ cmd_sync_ai_rules() {
           "$tool" \
           "$target" \
           "$content" \
+          "$dry_run"
+        ;;
+
+      codex)
+        # Codex syncs both combined file AND individual skills
+        local content
+
+        content=$(cat "$main_file" 2>/dev/null || true)
+
+        content+=$'\n\n'
+        content+="$(build_directory_index \
+          "Rules" \
+          "$rules_dir" \
+          "$tool")"
+
+        content+=$'\n\n'
+        content+="$(build_directory_index \
+          "Skills" \
+          "$skills_dir" \
+          "$tool")"
+
+        sync_single_file \
+          "$tool" \
+          "$target" \
+          "$content" \
+          "$dry_run"
+
+        # Also sync individual skills to .agents/skills/ for native discovery
+        sync_directory_codex \
+          skills \
+          ".agents/skills" \
+          "$skills_dir" \
+          ".md" \
           "$dry_run"
         ;;
     esac
