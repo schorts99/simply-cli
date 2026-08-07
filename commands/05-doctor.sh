@@ -8,10 +8,10 @@ cmd_doctor() {
   fi
 
   if [[ -d "$AI_DIR" ]]; then
-    echo "✅ .ai/ directory found"
+    echo "✅ .ai/ directory found ($AI_DIR)"
     cmd_status
   else
-    warn ".ai/ not found. Run: simply init ai"
+    warn ".ai/ not found ($AI_DIR). Run: simply init ai"
   fi
 
   echo ""
@@ -19,9 +19,14 @@ cmd_doctor() {
   for tool_entry in "${TOOLS[@]}"; do
     local tool=${tool_entry%%:*}
     local path=${tool_entry#*:}
-    [[ -f "$path" ]] && echo "✅ $tool" || warn "$tool not synced"
+    if [[ -e "$path" ]]; then
+      echo "✅ $tool ($path)"
+    else
+      warn "$tool not synced ($path)"
+    fi
   done
 
   echo ""
   echo "Version: $SIMPLY_VERSION"
 }
+

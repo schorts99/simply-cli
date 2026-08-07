@@ -39,7 +39,7 @@ email = "you@example.com"
 [settings]
 # Where AI source files live relative to project root
 ai_dir = ".ai"
-rules_dir = "${project_name}/.ai/rules"
+rules_dir = ".ai/rules"
 skills_dir = ".ai/skills"
 # Default behaviour for sync operations
 dry_run = true

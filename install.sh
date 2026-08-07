@@ -63,26 +63,14 @@ AI_DIR=".ai"
 GLOBAL_AI_DIR="$HOME/.ai-global"
 CONFIG_FILE="$SIMPLY_DIR/config"
 
-# Project-level config overrides (TOML at .simply/config.toml)
-PROJECT_CONFIG_FILE=".simply/config.toml"
-if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
-  # parse simple TOML key = "value" lines for ai_dir, rules_dir, skills_dir
-  parsed_ai_dir=$(sed -n 's/^[[:space:]]*ai_dir *= *"\(.*\)".*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
-  if [[ -n "$parsed_ai_dir" ]]; then AI_DIR="$parsed_ai_dir"; fi
-
-  parsed_rules_dir=$(sed -n 's/^[[:space:]]*rules_dir *= *"\(.*\)".*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
-  if [[ -n "$parsed_rules_dir" ]]; then RULES_DIR="$parsed_rules_dir"; fi
-
-  parsed_skills_dir=$(sed -n 's/^[[:space:]]*skills_dir *= *"\(.*\)".*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
-  if [[ -n "$parsed_skills_dir" ]]; then SKILLS_DIR="$parsed_skills_dir"; fi
-
-  # boolean flags: dry_run and backup_existing (true|false)
-  parsed_dry_run=$(sed -n 's/^[[:space:]]*dry_run *= *\(true\|false\).*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
-  if [[ -n "$parsed_dry_run" ]]; then DRY_RUN="$parsed_dry_run"; fi
-
-  parsed_backup_existing=$(sed -n 's/^[[:space:]]*backup_existing *= *\(true\|false\).*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
-  if [[ -n "$parsed_backup_existing" ]]; then BACKUP_EXISTING="$parsed_backup_existing"; fi
-fi
+# Default tools configuration
+TOOLS=(
+  "cursor:.cursor"
+  "claude:.claude"
+  "copilot:.github"
+  "antigravity:ANTIGRAVITY.md"
+  "codex:AGENTS.md"
+)
 
 # Defaults when not overridden
 RULES_DIR="${RULES_DIR:-$AI_DIR/rules}"
@@ -91,21 +79,64 @@ DRY_RUN="${DRY_RUN:-true}"
 BACKUP_EXISTING="${BACKUP_EXISTING:-true}"
 
 load_config() {
-  TOOLS=(
-    "cursor:.cursor"
-    "claude:.claude"
-    "copilot:.github"
-    "antigravity:ANTIGRAVITY.md"
-    "codex:AGENTS.md"
-  )
-
-  [[ -f "$CONFIG_FILE" ]] || return
-
-  # shellcheck disable=SC1090
-  source "$CONFIG_FILE"
+  # Load global config (may override TOOLS and other settings)
+  [[ -f "$CONFIG_FILE" ]] && source "$CONFIG_FILE"
 }
 
+# Load global config first (overriding defaults if defined)
 load_config
+
+# Project-level config overrides (TOML at .simply/config.toml or config.toml)
+PROJECT_CONFIG_FILE=".simply/config.toml"
+if [[ ! -f "$PROJECT_CONFIG_FILE" && -f "config.toml" ]]; then
+  PROJECT_CONFIG_FILE="config.toml"
+fi
+
+if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
+  # parse simple TOML key = "value" lines for ai_dir, rules_dir, skills_dir
+  parsed_ai_dir=$(sed -n 's/^[[:space:]]*ai_dir *= *"\(.*\)".*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r' | tail -n 1) || true
+  if [[ -n "$parsed_ai_dir" ]]; then AI_DIR="$parsed_ai_dir"; fi
+
+  parsed_rules_dir=$(sed -n 's/^[[:space:]]*rules_dir *= *"\(.*\)".*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r' | tail -n 1) || true
+  if [[ -n "$parsed_rules_dir" ]]; then RULES_DIR="$parsed_rules_dir"; fi
+
+  parsed_skills_dir=$(sed -n 's/^[[:space:]]*skills_dir *= *"\(.*\)".*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r' | tail -n 1) || true
+  if [[ -n "$parsed_skills_dir" ]]; then SKILLS_DIR="$parsed_skills_dir"; fi
+
+  # boolean flags: dry_run and backup_existing (true|false)
+  parsed_dry_run=$(sed -n 's/^[[:space:]]*dry_run *= *\(true\|false\).*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r' | tail -n 1) || true
+  if [[ -n "$parsed_dry_run" ]]; then DRY_RUN="$parsed_dry_run"; fi
+
+  parsed_backup_existing=$(sed -n 's/^[[:space:]]*backup_existing *= *\(true\|false\).*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r' | tail -n 1) || true
+  if [[ -n "$parsed_backup_existing" ]]; then BACKUP_EXISTING="$parsed_backup_existing"; fi
+
+  # Parse tools from [tools] section: tool = "target"
+  if grep -q '^\[tools\]' "$PROJECT_CONFIG_FILE"; then
+    TOOLS=()
+    in_tools_section=false
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line=$(echo "$line" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+      
+      if [[ "$line" == "[tools]" ]]; then
+        in_tools_section=true
+        continue
+      fi
+      
+      if [[ "$line" =~ ^\[ && "$in_tools_section" == true ]]; then
+        break
+      fi
+      
+      if [[ "$in_tools_section" == true && "$line" == *"="* ]]; then
+        tool="${line%%=*}"
+        target="${line#*=}"
+        tool=$(echo "$tool" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        target=$(echo "$target" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//' -e 's/"//g' -e "s/'//g")
+        [[ -n "$tool" && -n "$target" ]] && TOOLS+=("$tool:$target")
+      fi
+    done < "$PROJECT_CONFIG_FILE"
+  fi
+fi
 
 COMMANDS_DIR="$HOME/.simply/commands"
 
@@ -345,20 +376,32 @@ if [[ ! -f "$HOME/.simply/config" ]]; then
 
 cat > "$HOME/.simply/config" <<'EOF'
 # Simply CLI Configuration
-
 #
-# Override sync targets here if needed.
+# This global config is sourced as bash, allowing you to override variables.
 #
-
-# The default configuration is:
+# To override TOOLS, define the array:
 #
 # TOOLS=(
 #   "cursor:.cursor"
 #   "claude:.claude"
 #   "copilot:.github"
-#   "gemini:GEMINI.md"
+#   "antigravity:ANTIGRAVITY.md"
 #   "codex:AGENTS.md"
 # )
+#
+# For project-level overrides, use .simply/config.toml with the [tools] table:
+#
+# [tools]
+# cursor = ".cursor"
+# claude = ".claude"
+# copilot = ".github"
+# antigravity = "ANTIGRAVITY.md"
+# codex = "AGENTS.md"
+#
+# Config precedence (lowest to highest):
+# 1. Default TOOLS array (built into simply)
+# 2. Global config ($HOME/.simply/config) - bash format
+# 3. Project config (.simply/config.toml) - TOML format [tools] table
 EOF
 fi
 
