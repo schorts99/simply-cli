@@ -20,6 +20,11 @@ backup_file() {
 
   [[ -f "$target" ]] || return 0
 
+  # Respect project config: skip backups if backup_existing is false
+  if [[ "${BACKUP_EXISTING:-true}" != "true" ]]; then
+    return 0
+  fi
+
   local backup="${target}.bak.$(date +%Y%m%d_%H%M%S)"
 
   cp "$target" "$backup"
@@ -203,7 +208,7 @@ build_directory_index() {
       local rel
 
       name=$(basename "$skill_dir")
-      rel=".ai/$(basename "$source_dir")/$name/SKILL.md"
+      rel="${source_dir%/}/$name/SKILL.md"
 
       if [[ "$tool" == "antigravity" ]]; then
         echo "- [$name]($rel) — or \`@$rel\`"
@@ -220,7 +225,7 @@ build_directory_index() {
       local rel
 
       name=$(basename "$src" .md)
-      rel=".ai/$(basename "$source_dir")/$(basename "$src")"
+      rel="${source_dir%/}/$(basename "$src")"
 
       if [[ "$tool" == "antigravity" ]]; then
         echo "- [$name]($rel) — or \`@$rel\`"
@@ -238,10 +243,19 @@ build_directory_index() {
 
 
 cmd_sync_ai_rules() {
-  local dry_run=false
+  # default from project config (DRY_RUN), fallback to true
+  local dry_run="${DRY_RUN:-true}"
 
+  # CLI overrides
   if [[ "${1:-}" == "--dry-run" ]]; then
     dry_run=true
+    shift
+  elif [[ "${1:-}" == "--no-dry-run" ]]; then
+    dry_run=false
+    shift
+  fi
+
+  if [[ "$dry_run" == true ]]; then
     log "=== DRY RUN MODE ==="
   fi
 
@@ -249,8 +263,8 @@ cmd_sync_ai_rules() {
 
   [[ -d "$AI_DIR" ]] || cmd_init_ai
 
-  local rules_dir="$AI_DIR/rules"
-  local skills_dir="$AI_DIR/skills"
+  local rules_dir="${RULES_DIR:-$AI_DIR/rules}"
+  local skills_dir="${SKILLS_DIR:-$AI_DIR/skills}"
   local main_file="$AI_DIR/AGENTS.md"
 
   for tool_entry in "${TOOLS[@]}"; do

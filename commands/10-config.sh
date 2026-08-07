@@ -41,8 +41,6 @@ email = "you@example.com"
 ai_dir = ".ai"
 rules_dir = "${project_name}/.ai/rules"
 skills_dir = ".ai/skills"
-# Where generated/synced outputs should go
-generated_dir = ".simply-generated"
 # Default behaviour for sync operations
 dry_run = true
 backup_existing = true

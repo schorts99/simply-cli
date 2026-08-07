@@ -63,6 +63,33 @@ AI_DIR=".ai"
 GLOBAL_AI_DIR="$HOME/.ai-global"
 CONFIG_FILE="$SIMPLY_DIR/config"
 
+# Project-level config overrides (TOML at .simply/config.toml)
+PROJECT_CONFIG_FILE=".simply/config.toml"
+if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
+  # parse simple TOML key = "value" lines for ai_dir, rules_dir, skills_dir
+  parsed_ai_dir=$(sed -n 's/^[[:space:]]*ai_dir *= *"\(.*\)".*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
+  if [[ -n "$parsed_ai_dir" ]]; then AI_DIR="$parsed_ai_dir"; fi
+
+  parsed_rules_dir=$(sed -n 's/^[[:space:]]*rules_dir *= *"\(.*\)".*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
+  if [[ -n "$parsed_rules_dir" ]]; then RULES_DIR="$parsed_rules_dir"; fi
+
+  parsed_skills_dir=$(sed -n 's/^[[:space:]]*skills_dir *= *"\(.*\)".*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
+  if [[ -n "$parsed_skills_dir" ]]; then SKILLS_DIR="$parsed_skills_dir"; fi
+
+  # boolean flags: dry_run and backup_existing (true|false)
+  parsed_dry_run=$(sed -n 's/^[[:space:]]*dry_run *= *\(true\|false\).*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
+  if [[ -n "$parsed_dry_run" ]]; then DRY_RUN="$parsed_dry_run"; fi
+
+  parsed_backup_existing=$(sed -n 's/^[[:space:]]*backup_existing *= *\(true\|false\).*/\1/p' "$PROJECT_CONFIG_FILE" | tr -d '\r') || true
+  if [[ -n "$parsed_backup_existing" ]]; then BACKUP_EXISTING="$parsed_backup_existing"; fi
+fi
+
+# Defaults when not overridden
+RULES_DIR="${RULES_DIR:-$AI_DIR/rules}"
+SKILLS_DIR="${SKILLS_DIR:-$AI_DIR/skills}"
+DRY_RUN="${DRY_RUN:-true}"
+BACKUP_EXISTING="${BACKUP_EXISTING:-true}"
+
 load_config() {
   TOOLS=(
     "cursor:.cursor"
