@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-SIMPLY_VERSION="v1.5.0"
+SIMPLY_VERSION="v1.6.0"
 
 mkdir -p \
   "$HOME/.local/bin" \
