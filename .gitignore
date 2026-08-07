@@ -1,5 +1,6 @@
 .claude
-.codex
 .cursor
-.gemini
 .github
+AGENTS.md
+CLAUDE.md
+GEMINI.md
