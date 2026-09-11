@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-SIMPLY_VERSION="v1.6.0"
+SIMPLY_VERSION="v1.7.0"
 
 mkdir -p \
   "$HOME/.local/bin" \
@@ -132,16 +132,16 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
     while IFS= read -r line; do
       line="${line%%#*}"
       line=$(echo "$line" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
-      
+
       if [[ "$line" == "[tools]" ]]; then
         in_tools_section=true
         continue
       fi
-      
+
       if [[ "$line" =~ ^\[ && "$in_tools_section" == true ]]; then
         break
       fi
-      
+
       if [[ "$in_tools_section" == true && "$line" == *"="* ]]; then
         tool="${line%%=*}"
         target="${line#*=}"
