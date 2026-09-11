@@ -80,7 +80,8 @@ FILES=()
 # Each entry encoded as "name|type|url|path|ref"
 SKILLS_REMOTE=()
 
-# Hooks — shell commands run after certain simply operations
+# Hooks — shell commands run before/after certain simply operations
+HOOKS_PRE_SYNC=()
 HOOKS_POST_SYNC=()
 
 # Feature flags (true by default)
@@ -304,6 +305,24 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
         break
       fi
 
+      if [[ "$in_hooks_section" == true && "$line" == pre_sync* ]]; then
+        _hook_val="${line#*=}"
+        _hook_val=$(echo "$_hook_val" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        HOOKS_PRE_SYNC=()
+        if [[ "$_hook_val" == \[* ]]; then
+          # Array: ["cmd1", "cmd2"] — extract each quoted element
+          _hook_val=$(echo "$_hook_val" | sed -e 's/^\[//' -e 's/\]$//')
+          while IFS= read -r _item; do
+            _item=$(echo "$_item" | sed -e 's/^[[:space:]]*"//;s/"[[:space:]]*$//;' -e "s/^[[:space:]]*'//;s/'[[:space:]]*$//")
+            [[ -n "$_item" ]] && HOOKS_PRE_SYNC+=("$_item")
+          done < <(echo "$_hook_val" | tr ',' '\n')
+        else
+          # Single string
+          _hook_val=$(echo "$_hook_val" | sed -e 's/"//g' -e "s/'//g")
+          [[ -n "$_hook_val" ]] && HOOKS_PRE_SYNC+=("$_hook_val")
+        fi
+      fi
+
       if [[ "$in_hooks_section" == true && "$line" == post_sync* ]]; then
         _hook_val="${line#*=}"
         _hook_val=$(echo "$_hook_val" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -312,7 +331,7 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
           # Array: ["cmd1", "cmd2"] — extract each quoted element
           _hook_val=$(echo "$_hook_val" | sed -e 's/^\[//' -e 's/\]$//')
           while IFS= read -r _item; do
-            _item=$(echo "$_item" | sed -e 's/^[[:space:]]*"//;s/"[[:space:]]*$//' -e "s/^[[:space:]]*'//;s/'[[:space:]]*$//")
+            _item=$(echo "$_item" | sed -e 's/^[[:space:]]*"//;s/"[[:space:]]*$//;' -e "s/^[[:space:]]*'//;s/'[[:space:]]*$//")
             [[ -n "$_item" ]] && HOOKS_POST_SYNC+=("$_item")
           done < <(echo "$_hook_val" | tr ',' '\n')
         else
@@ -384,8 +403,28 @@ case "${1:-}" in
     ;;
 
   config)
-    # Create a .simply/ directory and populate a config.toml
-    cmd_config
+    case "${2:-}" in
+      --show)
+        cmd_config_show
+        ;;
+      *)
+        cmd_config
+        ;;
+    esac
+    ;;
+
+  add)
+    case "${2:-}" in
+      rule)
+        cmd_add rule "${3:-}" "${4:-}"
+        ;;
+      skill)
+        cmd_add skill "${3:-}" "${4:-}"
+        ;;
+      *)
+        usage
+        ;;
+    esac
     ;;
 
   create)
@@ -466,7 +505,8 @@ if [[ -n "${ZSH_VERSION-}" ]] || [[ "$SHELL" == *zsh* ]]; then
 cat > "$HOME/.local/share/simply-completion.sh" <<'COMP'
 _simply_commands=(
   'init:Initialize .ai structure'
-  'config:Create project .simply config'
+  'add:Scaffold a new rule or skill'
+  'config:Create project .simply config or show effective config'
   'create:Create personalized design-doc.md'
   'sync:Sync configs to AI tools'
   'status:Show current AI config'
@@ -493,6 +533,14 @@ _simply() {
       case $words[2] in
         init)
           _values 'subcommand' ai
+          ;;
+
+        add)
+          _values 'subcommand' rule skill
+          ;;
+
+        config)
+          _values 'subcommand' --show
           ;;
 
         create)
@@ -525,6 +573,16 @@ _simply_completions() {
       return
       ;;
 
+    add)
+      COMPREPLY=($(compgen -W "rule skill" -- "$cur"))
+      return
+      ;;
+
+    config)
+      COMPREPLY=($(compgen -W "--show" -- "$cur"))
+      return
+      ;;
+
     create)
       COMPREPLY=($(compgen -W "design-doc" -- "$cur"))
       return
@@ -539,7 +597,7 @@ _simply_completions() {
 
   COMPREPLY=(
     $(compgen -W \
-      "init config create sync status doctor update uninstall version help" \
+      "init add config create sync status doctor update uninstall version help" \
       -- "$cur")
   )
 }

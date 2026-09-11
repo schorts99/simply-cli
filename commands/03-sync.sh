@@ -5,18 +5,35 @@ set -euo pipefail
 cmd_sync_ai_rules() {
   # default from project config (DRY_RUN), fallback to true
   local dry_run="${DRY_RUN:-true}"
+  local refresh=false
 
   # CLI overrides
-  if [[ "${1:-}" == "--dry-run" ]]; then
-    dry_run=true
-    shift
-  elif [[ "${1:-}" == "--no-dry-run" ]]; then
-    dry_run=false
-    shift
-  fi
+  while [[ $# -gt 0 ]]; do
+    case "${1:-}" in
+      --dry-run)    dry_run=true;  shift ;;
+      --no-dry-run) dry_run=false; shift ;;
+      --refresh)    refresh=true;  shift ;;
+      *) break ;;
+    esac
+  done
 
   if [[ "$dry_run" == true ]]; then
     log "=== DRY RUN MODE ==="
+  fi
+
+  # Set up and prune cache
+  local cache_dir=".simply/cache"
+  if [[ "$dry_run" != true ]]; then
+    mkdir -p "$cache_dir"
+    _prune_cache "$cache_dir"
+  fi
+
+  # Run pre_sync hooks
+  if [[ ${#HOOKS_PRE_SYNC[@]} -gt 0 ]]; then
+    for hook_cmd in "${HOOKS_PRE_SYNC[@]}"; do
+      log "Running pre_sync hook: $hook_cmd"
+      eval "$hook_cmd"
+    done
   fi
 
   log "Starting sync..."
@@ -56,8 +73,21 @@ cmd_sync_ai_rules() {
             ;;
         esac
 
+        local s_cache_file="$cache_dir/skill-${s_name}.md"
+
         if [[ "$dry_run" == true ]]; then
-          log "[DRY-RUN] Would fetch skill (git) $s_fetch_url → $s_dest_dir/SKILL.md"
+          if [[ "$refresh" != true ]] && _cache_valid "$s_cache_file"; then
+            log "[DRY-RUN] Would use cached skill $s_name → $s_dest_dir/SKILL.md"
+          else
+            log "[DRY-RUN] Would fetch skill (git) $s_fetch_url → $s_dest_dir/SKILL.md"
+          fi
+          continue
+        fi
+
+        if [[ "$refresh" != true ]] && _cache_valid "$s_cache_file"; then
+          log "skill $s_name: using cache"
+          mkdir -p "$s_dest_dir"
+          cp "$s_cache_file" "$s_dest_dir/SKILL.md"
           continue
         fi
 
@@ -83,6 +113,7 @@ cmd_sync_ai_rules() {
         fi
 
         mkdir -p "$s_dest_dir"
+        cp "$s_tmp" "$s_cache_file"
         mv "$s_tmp" "$s_dest_dir/SKILL.md"
         log "skill (git) materialised → $s_dest_dir/SKILL.md"
 
@@ -314,8 +345,24 @@ cmd_sync_ai_rules() {
             ;;
         esac
 
+        local f_basename f_cache_file
+        f_basename=$(basename "$f_dest")
+        f_cache_file="$cache_dir/file-${f_basename}.md"
+
         if [[ "$dry_run" == true ]]; then
-          log "[DRY-RUN] Would fetch (git) $f_fetch_url → $f_dest"
+          if [[ "$refresh" != true ]] && _cache_valid "$f_cache_file"; then
+            log "[DRY-RUN] Would use cached file $f_basename → $f_dest"
+          else
+            log "[DRY-RUN] Would fetch (git) $f_fetch_url → $f_dest"
+          fi
+          continue
+        fi
+
+        if [[ "$refresh" != true ]] && _cache_valid "$f_cache_file"; then
+          log "file $f_basename: using cache"
+          mkdir -p "$(dirname "$f_dest")"
+          backup_file "$f_dest"
+          cp "$f_cache_file" "$f_dest"
           continue
         fi
 
@@ -342,6 +389,7 @@ cmd_sync_ai_rules() {
 
         mkdir -p "$(dirname "$f_dest")"
         backup_file "$f_dest"
+        cp "$tmp_file" "$f_cache_file"
         mv "$tmp_file" "$f_dest"
         log "file (git) synced → $f_dest"
 

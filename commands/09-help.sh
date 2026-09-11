@@ -8,6 +8,9 @@ Commands:
   init ai                  Initialize .ai/ structure
   config                   Create .simply/ and a default config.toml in the project
   create design-doc        Create personalized design-doc.md
+  add rule <name>          Scaffold a new rule in .ai/rules/
+  add skill <name>         Scaffold a new skill in .ai/skills/
+  config --show            Print the effective resolved configuration
   sync ai [--dry-run]      Sync configs to AI tools
   status                   Show current AI config status
   doctor                   Run diagnostics
