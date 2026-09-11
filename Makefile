@@ -1,4 +1,4 @@
-.PHONY: install ai-init ai-sync ai-sync-both ai-doctor ai-status ai-create-design-doc help
+.PHONY: install ai-init ai-sync-dry-run ai-sync ai-doctor ai-status ai-create-design-doc help
 
 install:
 	@echo "Running installation script..."
@@ -10,14 +10,11 @@ ai-init:
 ai-create-design-doc:
 	simply create design-doc
 
+ai-sync-dry-run:
+	simply sync ai --dry-run
+
 ai-sync:
-	simply sync ai rules
-
-ai-sync-global:
-	simply sync ai rules --global
-
-ai-sync-both:
-	simply sync ai rules --both
+	simply sync ai --no-dry-run
 
 ai-status:
 	simply status
@@ -34,9 +31,8 @@ help:
 	@echo "AI Config Management:"
 	@echo "  make ai-init                    → Initialize .ai/ structure"
 	@echo "  make ai-create-design-doc       → Create design-doc.md from template"
-	@echo "  make ai-sync                    → Sync configs (project only)"
-	@echo "  make ai-sync-global             → Sync configs (global only)"
-	@echo "  make ai-sync-both               → Sync to both project and global"
+	@echo "  make ai-sync-dry-run            → Sync configs (dry run)"
+	@echo "  make ai-sync                    → Sync configs (live run)"
 	@echo "  make ai-status                  → Show current config status"
 	@echo "  make ai-doctor                  → Run diagnostics and recommendations"
 	@echo ""
