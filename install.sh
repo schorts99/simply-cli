@@ -310,15 +310,16 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
         _hook_val=$(echo "$_hook_val" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
         HOOKS_PRE_SYNC=()
         if [[ "$_hook_val" == \[* ]]; then
-          # Array: ["cmd1", "cmd2"] — extract each quoted element
+          # Array: ["cmd1", "cmd2"] — strip brackets then strip only the outer double-quotes
+          # from each comma-separated element, preserving inner quotes (e.g. echo 'hi')
           _hook_val=$(echo "$_hook_val" | sed -e 's/^\[//' -e 's/\]$//')
           while IFS= read -r _item; do
-            _item=$(echo "$_item" | sed -e 's/^[[:space:]]*"//;s/"[[:space:]]*$//;' -e "s/^[[:space:]]*'//;s/'[[:space:]]*$//")
+            _item=$(echo "$_item" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//')
             [[ -n "$_item" ]] && HOOKS_PRE_SYNC+=("$_item")
           done < <(echo "$_hook_val" | tr ',' '\n')
         else
-          # Single string
-          _hook_val=$(echo "$_hook_val" | sed -e 's/"//g' -e "s/'//g")
+          # Single string: strip only the outer double-quotes
+          _hook_val=$(echo "$_hook_val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//')
           [[ -n "$_hook_val" ]] && HOOKS_PRE_SYNC+=("$_hook_val")
         fi
       fi
@@ -328,15 +329,16 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
         _hook_val=$(echo "$_hook_val" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
         HOOKS_POST_SYNC=()
         if [[ "$_hook_val" == \[* ]]; then
-          # Array: ["cmd1", "cmd2"] — extract each quoted element
+          # Array: ["cmd1", "cmd2"] — strip brackets then strip only the outer double-quotes
+          # from each comma-separated element, preserving inner quotes (e.g. echo 'hi')
           _hook_val=$(echo "$_hook_val" | sed -e 's/^\[//' -e 's/\]$//')
           while IFS= read -r _item; do
-            _item=$(echo "$_item" | sed -e 's/^[[:space:]]*"//;s/"[[:space:]]*$//;' -e "s/^[[:space:]]*'//;s/'[[:space:]]*$//")
+            _item=$(echo "$_item" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//')
             [[ -n "$_item" ]] && HOOKS_POST_SYNC+=("$_item")
           done < <(echo "$_hook_val" | tr ',' '\n')
         else
-          # Single string
-          _hook_val=$(echo "$_hook_val" | sed -e 's/"//g' -e "s/'//g")
+          # Single string: strip only the outer double-quotes
+          _hook_val=$(echo "$_hook_val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//')
           [[ -n "$_hook_val" ]] && HOOKS_POST_SYNC+=("$_hook_val")
         fi
       fi
