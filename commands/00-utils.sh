@@ -2,6 +2,45 @@ log() {
   echo "→ $1"
 }
 
+_cache_valid() {
+  local cache_file="$1"
+  local ttl="${2:-86400}"
+  [[ -f "$cache_file" ]] || return 1
+  local now mod age
+  now=$(date +%s)
+  if [[ "$OSTYPE" == darwin* ]]; then
+    mod=$(stat -f %m "$cache_file")
+  else
+    mod=$(stat -c %Y "$cache_file")
+  fi
+  age=$(( now - mod ))
+  [[ $age -lt $ttl ]]
+}
+
+_prune_cache() {
+  local cache_dir="$1"
+  local max_age="${2:-604800}" # 7 days
+  [[ -d "$cache_dir" ]] || return 0
+  local now
+  now=$(date +%s)
+  shopt -s nullglob
+  for f in "$cache_dir"/*.md; do
+    [[ -f "$f" ]] || continue
+    local mod age
+    if [[ "$OSTYPE" == darwin* ]]; then
+      mod=$(stat -f %m "$f")
+    else
+      mod=$(stat -c %Y "$f")
+    fi
+    age=$(( now - mod ))
+    if [[ $age -ge $max_age ]]; then
+      rm -f "$f"
+      log "cache: pruned old entry $(basename "$f")"
+    fi
+  done
+  shopt -u nullglob
+}
+
 warn() {
   echo "⚠️  $1"
 }

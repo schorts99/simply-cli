@@ -9,4 +9,29 @@ Be clear, concise, and correct.
 AGENTS
   fi
   log "✅ .ai/ initialized"
+
+  local gitignore=".gitignore"
+  local marker="# Simply CLI"
+  local block
+  block=$(cat <<'GITIGNORE'
+# Simply CLI
+# Sync cache (remote skills/files fetched at sync time)
+.simply/cache/
+
+# Timestamped backups created before overwriting synced files
+*.bak.*
+GITIGNORE
+)
+
+  if [[ -f "$gitignore" ]]; then
+    if grep -q "$marker" "$gitignore"; then
+      log ".gitignore already has Simply CLI entries"
+    else
+      printf '\n%s\n' "$block" >> "$gitignore"
+      log "✅ Appended Simply CLI entries to .gitignore"
+    fi
+  else
+    printf '%s\n' "$block" > "$gitignore"
+    log "✅ Created .gitignore with Simply CLI entries"
+  fi
 }
