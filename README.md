@@ -9,7 +9,10 @@ Simply CLI is a lightweight shell-based tool for bootstrapping, managing, and sy
 - Initialize a `.ai/` folder structure for AI tooling
 - Create a personalized `design-doc.md` from a local template
 - Sync `.ai/` content (rules, skills, `AGENTS.md`) to multiple AI tool formats simultaneously
-- Sync arbitrary root-level files (e.g. `AGENTS.md`, `DESIGN.md`) directly to the project root — from local paths or fetched from remote URLs
+- Fetch remote skills from Git repositories at a specific ref and materialise them into `.ai/skills/` before syncing
+- Sync arbitrary root-level files (e.g. `AGENTS.md`, `DESIGN.md`) directly to the project root — from local paths or fetched from a Git repo at a specific ref
+- Run shell hooks after sync (`post_sync`)
+- Gate commands via feature flags (`enable_sync`, `enable_create`)
 - Show current AI config status and configured tool targets
 - Run a diagnostic `doctor` command to verify your environment
 - Uninstall cleanly when done
@@ -106,7 +109,54 @@ path = "docs/DESIGN.md"
 ref  = "main"
 ```
 
-The `[[files]]` section mirrors the `[[skills]]` source structure. Each entry names a `dest` and a `[files.source]` sub-table with `type`, `url`, `path`, and `ref`. Sources can be **local** (path relative to the project root) or **git** (file fetched at sync time from a GitHub, GitLab, or Gitea repo at the given `ref`). Files are backed up before overwriting (respecting `backup_existing`) and dry-run is honoured the same as tool syncs.
+The `[[files]]` section mirrors the `[[skills]]` source structure. Each entry names a `dest` and a `[files.source]` sub-table with `type`, `url`, `path`, and `ref`. Sources can be **local** (path relative to the project root) or **git** (single file fetched at sync time from a GitHub, GitLab, or Gitea repo at the given `ref`). Files are backed up before overwriting (respecting `backup_existing`) and dry-run is honoured the same as tool syncs.
+
+### Skills — `[[skills]]`
+
+Skills can be pulled from remote Git repositories at sync time and materialised into `$skills_dir` before being distributed to tools:
+
+```toml
+# Remote skill — fetched from a Git repo
+[[skills]]
+name = "example-skill"
+[skills.source]
+type = "git"
+url  = "https://github.com/org/ai-skills"
+path = "example-skill"   # subdirectory within the repo containing SKILL.md
+ref  = "main"
+
+# Local skill — copied from the project tree
+[[skills]]
+name = "local-skill"
+[skills.source]
+type = "local"
+path = "./skills/local-skill"
+```
+
+For `git` type, Simply constructs the raw file URL (`url/ref/path/SKILL.md`) and fetches it with `curl` or `wget`. GitHub, GitLab, and Gitea/Forgejo hosts are all supported. The materialised skill is then picked up by the normal sync pass and distributed to all configured tools.
+
+### Hooks — `[hooks]`
+
+Shell commands to run automatically after certain operations:
+
+```toml
+[hooks]
+# Runs after every successful `simply sync ai`
+# Accepts a single string or an array of strings
+post_sync = ["echo 'synced'", "git add -A"]
+```
+
+### Feature flags — `[features]`
+
+Disable commands project-wide:
+
+```toml
+[features]
+enable_sync   = true   # set to false to block `simply sync ai`
+enable_create = true   # set to false to block `simply create design-doc`
+```
+
+When a command is disabled, `simply` exits with a warning rather than running it.
 
 **Config precedence (lowest → highest):**
 1. Built-in defaults

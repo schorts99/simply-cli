@@ -76,6 +76,17 @@ TOOLS=(
 # Each entry encoded as "dest|type|source|ref"
 FILES=()
 
+# Remote skills defined via [[skills]] in .simply/config.toml
+# Each entry encoded as "name|type|url|path|ref"
+SKILLS_REMOTE=()
+
+# Hooks — shell commands run after certain simply operations
+HOOKS_POST_SYNC=()
+
+# Feature flags (true by default)
+FEATURE_ENABLE_SYNC=true
+FEATURE_ENABLE_CREATE=true
+
 # Defaults when not overridden
 RULES_DIR="${RULES_DIR:-$AI_DIR/rules}"
 SKILLS_DIR="${SKILLS_DIR:-$AI_DIR/skills}"
@@ -207,6 +218,141 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
     _flush_file_entry
     unset -f _flush_file_entry
   fi
+
+  # Parse [[skills]] array-of-tables entries:
+  #   [[skills]]
+  #   name = "example-skill"
+  #   [skills.source]
+  #   type = "git"
+  #   url  = "https://github.com/org/ai-skills"
+  #   path = "example-skill"   # subdirectory within the repo
+  #   ref  = "main"
+  # Encoded in SKILLS_REMOTE as "name|type|url|path|ref"
+  if grep -q '^\[\[skills\]\]' "$PROJECT_CONFIG_FILE"; then
+    SKILLS_REMOTE=()
+    _s_name="" _s_type="local" _s_url="" _s_path="" _s_ref="main"
+    _s_in_source=false
+
+    _flush_skill_entry() {
+      if [[ -n "$_s_name" ]]; then
+        SKILLS_REMOTE+=("${_s_name}|${_s_type}|${_s_url}|${_s_path}|${_s_ref}")
+      fi
+      _s_name="" _s_type="local" _s_url="" _s_path="" _s_ref="main"
+      _s_in_source=false
+    }
+
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line=$(echo "$line" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+      [[ -z "$line" ]] && continue
+
+      if [[ "$line" == "[[skills]]" ]]; then
+        _flush_skill_entry
+        _s_in_source=false
+        continue
+      fi
+
+      if [[ "$line" == "[skills.source]" ]]; then
+        _s_in_source=true
+        continue
+      fi
+
+      # Any other section header ends the [[skills]] block
+      if [[ "$line" =~ ^\[ ]]; then
+        break
+      fi
+
+      if [[ "$line" == *"="* ]]; then
+        _k="${line%%=*}"
+        _v="${line#*=}"
+        _k=$(echo "$_k" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        _v=$(echo "$_v" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//' -e 's/"//g' -e "s/'//g")
+        if [[ "$_s_in_source" == false ]]; then
+          case "$_k" in
+            name) _s_name="$_v" ;;
+          esac
+        else
+          case "$_k" in
+            type) _s_type="$_v" ;;
+            url)  _s_url="$_v" ;;
+            path) _s_path="$_v" ;;
+            ref)  _s_ref="$_v" ;;
+          esac
+        fi
+      fi
+    done < "$PROJECT_CONFIG_FILE"
+
+    _flush_skill_entry
+    unset -f _flush_skill_entry
+  fi
+
+  # Parse [hooks] section
+  # post_sync supports a single string or an array of strings: ["cmd1", "cmd2"]
+  if grep -q '^\[hooks\]' "$PROJECT_CONFIG_FILE"; then
+    in_hooks_section=false
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line=$(echo "$line" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+      [[ -z "$line" ]] && continue
+
+      if [[ "$line" == "[hooks]" ]]; then
+        in_hooks_section=true
+        continue
+      fi
+
+      if [[ "$line" =~ ^\[ && "$in_hooks_section" == true ]]; then
+        break
+      fi
+
+      if [[ "$in_hooks_section" == true && "$line" == post_sync* ]]; then
+        _hook_val="${line#*=}"
+        _hook_val=$(echo "$_hook_val" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        HOOKS_POST_SYNC=()
+        if [[ "$_hook_val" == \[* ]]; then
+          # Array: ["cmd1", "cmd2"] — extract each quoted element
+          _hook_val=$(echo "$_hook_val" | sed -e 's/^\[//' -e 's/\]$//')
+          while IFS= read -r _item; do
+            _item=$(echo "$_item" | sed -e 's/^[[:space:]]*"//;s/"[[:space:]]*$//' -e "s/^[[:space:]]*'//;s/'[[:space:]]*$//")
+            [[ -n "$_item" ]] && HOOKS_POST_SYNC+=("$_item")
+          done < <(echo "$_hook_val" | tr ',' '\n')
+        else
+          # Single string
+          _hook_val=$(echo "$_hook_val" | sed -e 's/"//g' -e "s/'//g")
+          [[ -n "$_hook_val" ]] && HOOKS_POST_SYNC+=("$_hook_val")
+        fi
+      fi
+    done < "$PROJECT_CONFIG_FILE"
+  fi
+
+  # Parse [features] section
+  if grep -q '^\[features\]' "$PROJECT_CONFIG_FILE"; then
+    in_features_section=false
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line=$(echo "$line" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+      [[ -z "$line" ]] && continue
+
+      if [[ "$line" == "[features]" ]]; then
+        in_features_section=true
+        continue
+      fi
+
+      if [[ "$line" =~ ^\[ && "$in_features_section" == true ]]; then
+        break
+      fi
+
+      if [[ "$in_features_section" == true && "$line" == *"="* ]]; then
+        _fk="${line%%=*}"
+        _fv="${line#*=}"
+        _fk=$(echo "$_fk" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        _fv=$(echo "$_fv" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//' -e 's/"//g' -e "s/'//g")
+        case "$_fk" in
+          enable_sync)   FEATURE_ENABLE_SYNC="$_fv" ;;
+          enable_create) FEATURE_ENABLE_CREATE="$_fv" ;;
+        esac
+      fi
+    done < "$PROJECT_CONFIG_FILE"
+  fi
 fi
 
 COMMANDS_DIR="$HOME/.simply/commands"
@@ -243,6 +389,10 @@ case "${1:-}" in
     ;;
 
   create)
+    if [[ "${FEATURE_ENABLE_CREATE:-true}" != "true" ]]; then
+      echo "⚠️  create is disabled via features.enable_create in config"
+      exit 1
+    fi
     case "${2:-}" in
       design-doc)
         cmd_create_design_doc
@@ -254,6 +404,10 @@ case "${1:-}" in
     ;;
 
   sync)
+    if [[ "${FEATURE_ENABLE_SYNC:-true}" != "true" ]]; then
+      echo "⚠️  sync is disabled via features.enable_sync in config"
+      exit 1
+    fi
     case "${2:-}" in
       ai)
         shift 2

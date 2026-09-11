@@ -27,6 +27,86 @@ cmd_sync_ai_rules() {
   local skills_dir="${SKILLS_DIR:-$AI_DIR/skills}"
   local main_file="$AI_DIR/AGENTS.md"
 
+  # Materialise [[skills]] entries into $skills_dir before syncing tools
+  if [[ ${#SKILLS_REMOTE[@]} -gt 0 ]]; then
+    for skill_entry in "${SKILLS_REMOTE[@]}"; do
+      # Format: name|type|url|path|ref
+      local s_name s_type s_url s_path s_ref
+      IFS='|' read -r s_name s_type s_url s_path s_ref <<< "$skill_entry"
+
+      local s_dest_dir="$skills_dir/$s_name"
+
+      if [[ "$s_type" == "git" ]]; then
+        # Build a raw file URL for SKILL.md using the same host-detection
+        # logic used for [[files]] entries below.
+        local s_fetch_url
+        local s_base
+        s_base="${s_url%/}"   # strip trailing slash
+        s_path="${s_path#/}"  # strip leading slash
+
+        case "$s_base" in
+          *github.com*)
+            s_fetch_url="${s_base/github.com/raw.githubusercontent.com}/${s_ref}/${s_path}/SKILL.md"
+            ;;
+          *gitlab.com*|*gitlab.*)
+            s_fetch_url="${s_base}/-/raw/${s_ref}/${s_path}/SKILL.md"
+            ;;
+          *)
+            s_fetch_url="${s_base}/raw/${s_ref}/${s_path}/SKILL.md"
+            ;;
+        esac
+
+        if [[ "$dry_run" == true ]]; then
+          log "[DRY-RUN] Would fetch skill (git) $s_fetch_url → $s_dest_dir/SKILL.md"
+          continue
+        fi
+
+        local s_tmp
+        s_tmp=$(mktemp)
+
+        if command -v curl >/dev/null 2>&1; then
+          if ! curl -fsSL "$s_fetch_url" -o "$s_tmp"; then
+            warn "skills: failed to fetch $s_fetch_url — skipping $s_name"
+            rm -f "$s_tmp"
+            continue
+          fi
+        elif command -v wget >/dev/null 2>&1; then
+          if ! wget -q "$s_fetch_url" -O "$s_tmp"; then
+            warn "skills: failed to fetch $s_fetch_url — skipping $s_name"
+            rm -f "$s_tmp"
+            continue
+          fi
+        else
+          warn "skills: curl or wget required for git type — skipping $s_name"
+          rm -f "$s_tmp"
+          continue
+        fi
+
+        mkdir -p "$s_dest_dir"
+        mv "$s_tmp" "$s_dest_dir/SKILL.md"
+        log "skill (git) materialised → $s_dest_dir/SKILL.md"
+
+      else
+        # local type
+        local s_src="${s_path%/}/SKILL.md"
+
+        if [[ "$dry_run" == true ]]; then
+          log "[DRY-RUN] Would copy skill (local) $s_src → $s_dest_dir/SKILL.md"
+          continue
+        fi
+
+        if [[ ! -f "$s_src" ]]; then
+          warn "skills: source not found, skipping → $s_src"
+          continue
+        fi
+
+        mkdir -p "$s_dest_dir"
+        cp "$s_src" "$s_dest_dir/SKILL.md"
+        log "skill (local) materialised → $s_dest_dir/SKILL.md"
+      fi
+    done
+  fi
+
   for tool_entry in "${TOOLS[@]}"; do
     local tool="${tool_entry%%:*}"
     local target="${tool_entry#*:}"
@@ -286,5 +366,13 @@ cmd_sync_ai_rules() {
   fi
 
   log "✅ Sync completed"
+
+  # Run post_sync hooks
+  if [[ ${#HOOKS_POST_SYNC[@]} -gt 0 ]]; then
+    for hook_cmd in "${HOOKS_POST_SYNC[@]}"; do
+      log "Running post_sync hook: $hook_cmd"
+      eval "$hook_cmd"
+    done
+  fi
 }
 

@@ -89,12 +89,13 @@ name = "local-skill"
 type = "local"
 path = "./skills/local-skill"
 
-# Optional hooks to run after certain commands
+# Hooks — shell commands run after certain simply operations
 [hooks]
-# command to run after `simply sync` (string or array of strings)
+# post_sync runs after every successful `simply sync ai`
+# accepts a single string or an array of strings
 post_sync = ["echo 'synced'"]
 
-# Example feature toggles
+# Feature flags — set to false to disable a command entirely
 [features]
 enable_sync = true
 enable_create = true
