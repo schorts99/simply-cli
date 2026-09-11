@@ -54,6 +54,25 @@ copilot = ".github"
 antigravity = "ANTIGRAVITY.md"
 codex = "AGENTS.md"
 
+# Root-level file syncs — mirrors the [[skills]] source structure.
+# Each [[files]] entry names a destination and a [files.source] sub-table.
+
+# Local file — copied as-is from the project tree:
+# [[files]]
+# dest = "AGENTS.md"
+# [files.source]
+# type = "local"
+# path = ".ai/AGENTS.md"
+
+# Git file — fetched from a repo at a specific ref:
+# [[files]]
+# dest = "DESIGN.md"
+# [files.source]
+# type = "git"
+# url  = "https://github.com/org/repo"
+# path = "docs/DESIGN.md"
+# ref  = "main"
+
 # Example set of skills (array of tables)
 [[skills]]
 name = "example-skill"

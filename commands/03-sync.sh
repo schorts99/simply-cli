@@ -204,6 +204,87 @@ cmd_sync_ai_rules() {
     esac
   done
 
+  # Sync [[files]] entries (local or git)
+  if [[ ${#FILES[@]} -gt 0 ]]; then
+    for file_entry in "${FILES[@]}"; do
+      # Format: dest|type|url|path|ref
+      local f_dest f_type f_url f_path f_ref
+      IFS='|' read -r f_dest f_type f_url f_path f_ref <<< "$file_entry"
+
+      if [[ "$f_type" == "git" ]]; then
+        # Build a raw file URL from the git repo URL + ref + path.
+        # Supports github.com, gitlab.com, and Gitea/Forgejo instances.
+        local f_fetch_url
+        local f_base
+        f_base="${f_url%/}"  # strip trailing slash
+        f_path="${f_path#/}" # strip leading slash
+
+        case "$f_base" in
+          *github.com*)
+            # https://github.com/org/repo -> https://raw.githubusercontent.com/org/repo/ref/path
+            f_fetch_url="${f_base/github.com/raw.githubusercontent.com}/${f_ref}/${f_path}"
+            ;;
+          *gitlab.com*|*gitlab.*)
+            # https://gitlab.com/org/repo -> https://gitlab.com/org/repo/-/raw/ref/path
+            f_fetch_url="${f_base}/-/raw/${f_ref}/${f_path}"
+            ;;
+          *)
+            # Gitea/Forgejo: https://host/org/repo -> https://host/org/repo/raw/branch/path
+            f_fetch_url="${f_base}/raw/${f_ref}/${f_path}"
+            ;;
+        esac
+
+        if [[ "$dry_run" == true ]]; then
+          log "[DRY-RUN] Would fetch (git) $f_fetch_url → $f_dest"
+          continue
+        fi
+
+        local tmp_file
+        tmp_file=$(mktemp)
+
+        if command -v curl >/dev/null 2>&1; then
+          if ! curl -fsSL "$f_fetch_url" -o "$tmp_file"; then
+            warn "files: failed to fetch $f_fetch_url — skipping"
+            rm -f "$tmp_file"
+            continue
+          fi
+        elif command -v wget >/dev/null 2>&1; then
+          if ! wget -q "$f_fetch_url" -O "$tmp_file"; then
+            warn "files: failed to fetch $f_fetch_url — skipping"
+            rm -f "$tmp_file"
+            continue
+          fi
+        else
+          warn "files: curl or wget required for git type — skipping $f_dest"
+          rm -f "$tmp_file"
+          continue
+        fi
+
+        mkdir -p "$(dirname "$f_dest")"
+        backup_file "$f_dest"
+        mv "$tmp_file" "$f_dest"
+        log "file (git) synced → $f_dest"
+
+      else
+        # local type
+        if [[ "$dry_run" == true ]]; then
+          log "[DRY-RUN] Would sync file $f_path → $f_dest"
+          continue
+        fi
+
+        if [[ ! -f "$f_path" ]]; then
+          warn "files: source not found, skipping → $f_path"
+          continue
+        fi
+
+        mkdir -p "$(dirname "$f_dest")"
+        backup_file "$f_dest"
+        cp "$f_path" "$f_dest"
+        log "file synced → $f_dest"
+      fi
+    done
+  fi
+
   log "✅ Sync completed"
 }
 

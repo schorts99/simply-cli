@@ -72,6 +72,10 @@ TOOLS=(
   "codex:AGENTS.md"
 )
 
+# Root-level file syncs defined via [[files]] in .simply/config.toml
+# Each entry encoded as "dest|type|source|ref"
+FILES=()
+
 # Defaults when not overridden
 RULES_DIR="${RULES_DIR:-$AI_DIR/rules}"
 SKILLS_DIR="${SKILLS_DIR:-$AI_DIR/skills}"
@@ -135,6 +139,73 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
         [[ -n "$tool" && -n "$target" ]] && TOOLS+=("$tool:$target")
       fi
     done < "$PROJECT_CONFIG_FILE"
+  fi
+
+  # Parse [[files]] array-of-tables entries, mirroring the [[skills]] structure:
+  #   [[files]]
+  #   dest = "DESIGN.md"
+  #   [files.source]
+  #   type = "git"
+  #   url  = "https://github.com/org/repo"
+  #   path = "docs/DESIGN.md"   # path within the repo
+  #   ref  = "main"
+  # Encoded in FILES as "dest|type|url|path|ref"
+  if grep -q '^\[\[files\]\]' "$PROJECT_CONFIG_FILE"; then
+    FILES=()
+    _f_dest="" _f_type="local" _f_url="" _f_path="" _f_ref="main"
+    _f_in_source=false
+
+    _flush_file_entry() {
+      if [[ -n "$_f_dest" ]]; then
+        FILES+=("${_f_dest}|${_f_type}|${_f_url}|${_f_path}|${_f_ref}")
+      fi
+      _f_dest="" _f_type="local" _f_url="" _f_path="" _f_ref="main"
+      _f_in_source=false
+    }
+
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line=$(echo "$line" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+      [[ -z "$line" ]] && continue
+
+      if [[ "$line" == "[[files]]" ]]; then
+        _flush_file_entry
+        _f_in_source=false
+        continue
+      fi
+
+      if [[ "$line" == "[files.source]" ]]; then
+        _f_in_source=true
+        continue
+      fi
+
+      # Any other section header ends the [[files]] block
+      if [[ "$line" =~ ^\[ ]]; then
+        break
+      fi
+
+      if [[ "$line" == *"="* ]]; then
+        _k="${line%%=*}"
+        _v="${line#*=}"
+        _k=$(echo "$_k" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        _v=$(echo "$_v" | sed -e 's/^[[:space:]]*//;s/[[:space:]]*$//' -e 's/"//g' -e "s/'//g")
+        if [[ "$_f_in_source" == false ]]; then
+          case "$_k" in
+            dest) _f_dest="$_v" ;;
+          esac
+        else
+          case "$_k" in
+            type) _f_type="$_v" ;;
+            url)  _f_url="$_v" ;;
+            path) _f_path="$_v" ;;
+            ref)  _f_ref="$_v" ;;
+          esac
+        fi
+      fi
+    done < "$PROJECT_CONFIG_FILE"
+
+    _flush_file_entry
+    unset -f _flush_file_entry
   fi
 fi
 
@@ -397,6 +468,22 @@ cat > "$HOME/.simply/config" <<'EOF'
 # copilot = ".github"
 # antigravity = "ANTIGRAVITY.md"
 # codex = "AGENTS.md"
+#
+# To sync root-level files, use [[files]] entries (mirrors [[skills]] structure):
+#
+# [[files]]
+# dest = "AGENTS.md"
+# [files.source]
+# type = "local"
+# path = ".ai/AGENTS.md"
+#
+# [[files]]
+# dest = "DESIGN.md"
+# [files.source]
+# type = "git"
+# url  = "https://github.com/org/repo"
+# path = "docs/DESIGN.md"
+# ref  = "main"
 #
 # Config precedence (lowest to highest):
 # 1. Default TOOLS array (built into simply)

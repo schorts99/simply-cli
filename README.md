@@ -9,6 +9,7 @@ Simply CLI is a lightweight shell-based tool for bootstrapping, managing, and sy
 - Initialize a `.ai/` folder structure for AI tooling
 - Create a personalized `design-doc.md` from a local template
 - Sync `.ai/` content (rules, skills, `AGENTS.md`) to multiple AI tool formats simultaneously
+- Sync arbitrary root-level files (e.g. `AGENTS.md`, `DESIGN.md`) directly to the project root — from local paths or fetched from remote URLs
 - Show current AI config status and configured tool targets
 - Run a diagnostic `doctor` command to verify your environment
 - Uninstall cleanly when done
@@ -87,7 +88,25 @@ claude      = ".claude"
 copilot     = ".github"
 antigravity = "ANTIGRAVITY.md"
 codex       = "AGENTS.md"
+
+# Local file — copied as-is from the project tree
+[[files]]
+dest = "AGENTS.md"
+[files.source]
+type = "local"
+path = ".ai/AGENTS.md"
+
+# Git file — fetched from a repo at a specific ref
+[[files]]
+dest = "DESIGN.md"
+[files.source]
+type = "git"
+url  = "https://github.com/org/repo"
+path = "docs/DESIGN.md"
+ref  = "main"
 ```
+
+The `[[files]]` section mirrors the `[[skills]]` source structure. Each entry names a `dest` and a `[files.source]` sub-table with `type`, `url`, `path`, and `ref`. Sources can be **local** (path relative to the project root) or **git** (file fetched at sync time from a GitHub, GitLab, or Gitea repo at the given `ref`). Files are backed up before overwriting (respecting `backup_existing`) and dry-run is honoured the same as tool syncs.
 
 **Config precedence (lowest → highest):**
 1. Built-in defaults
