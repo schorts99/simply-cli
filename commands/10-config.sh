@@ -115,7 +115,7 @@ cmd_config_show() {
   printf '  %-16s = %s\n' "ai_dir"          "${AI_DIR:-.ai}"
   printf '  %-16s = %s\n' "rules_dir"        "${RULES_DIR:-${AI_DIR:-.ai}/rules}"
   printf '  %-16s = %s\n' "skills_dir"       "${SKILLS_DIR:-${AI_DIR:-.ai}/skills}"
-  printf '  %-16s = %s\n' "dry_run"          "${DRY_RUN:-true}"
+  printf '  %-16s = %s\n' "dry_run"          "${DRY_RUN:-false}"
   printf '  %-16s = %s\n' "backup_existing"  "${BACKUP_EXISTING:-true}"
   echo ""
 

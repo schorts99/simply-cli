@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-SIMPLY_VERSION="v1.7.0"
+SIMPLY_VERSION="v1.8.0"
 
 mkdir -p \
   "$HOME/.local/bin" \
@@ -91,7 +91,7 @@ FEATURE_ENABLE_CREATE=true
 # Defaults when not overridden
 RULES_DIR="${RULES_DIR:-$AI_DIR/rules}"
 SKILLS_DIR="${SKILLS_DIR:-$AI_DIR/skills}"
-DRY_RUN="${DRY_RUN:-true}"
+DRY_RUN="${DRY_RUN:-false}"
 BACKUP_EXISTING="${BACKUP_EXISTING:-true}"
 
 load_config() {
@@ -166,6 +166,7 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
     FILES=()
     _f_dest="" _f_type="local" _f_url="" _f_path="" _f_ref="main"
     _f_in_source=false
+    _f_seen=false
 
     _flush_file_entry() {
       if [[ -n "$_f_dest" ]]; then
@@ -183,6 +184,7 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
       if [[ "$line" == "[[files]]" ]]; then
         _flush_file_entry
         _f_in_source=false
+        _f_seen=true
         continue
       fi
 
@@ -191,8 +193,8 @@ if [[ -f "$PROJECT_CONFIG_FILE" ]]; then
         continue
       fi
 
-      # Any other section header ends the [[files]] block
-      if [[ "$line" =~ ^\[ ]]; then
+      # Any other section header ends the [[files]] block (but only after we've started it)
+      if [[ "$line" =~ ^\[ && "$_f_seen" == true ]]; then
         break
       fi
 

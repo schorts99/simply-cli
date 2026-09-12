@@ -8,7 +8,7 @@ cmd_status() {
   [[ -d "$skills_dir" ]] && skills_count=$(find "$skills_dir" -mindepth 2 -maxdepth 2 -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
   echo "Rules ($rules_dir): $rules_count files"
   echo "Skills ($skills_dir): $skills_count installed"
-  echo "Dry Run mode: ${DRY_RUN:-true}"
+  echo "Dry Run mode: ${DRY_RUN:-false}"
   echo "Backup Existing: ${BACKUP_EXISTING:-true}"
   echo ""
   echo "Configured Tools (${#TOOLS[@]}):"

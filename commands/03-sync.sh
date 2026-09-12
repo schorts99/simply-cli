@@ -3,8 +3,8 @@
 set -euo pipefail
 
 cmd_sync_ai_rules() {
-  # default from project config (DRY_RUN), fallback to true
-  local dry_run="${DRY_RUN:-true}"
+  # default from project config (DRY_RUN), fallback to false
+  local dry_run="${DRY_RUN:-false}"
   local refresh=false
 
   # CLI overrides
@@ -371,9 +371,30 @@ cmd_sync_ai_rules() {
 
         if command -v curl >/dev/null 2>&1; then
           if ! curl -fsSL "$f_fetch_url" -o "$tmp_file"; then
-            warn "files: failed to fetch $f_fetch_url — skipping"
-            rm -f "$tmp_file"
-            continue
+            # Try authenticated fallback via gh CLI for private GitHub repos
+            if command -v gh >/dev/null 2>&1 && [[ "$f_base" == *github.com* ]]; then
+              # extract owner/repo from URL
+              owner_repo=$(echo "$f_base" | sed -e 's#^https://##' -e 's#^http://##' -e 's#^git@##' -e 's#^www.##' -e 's#github.com/##' -e 's#\.git$##')
+              # Use gh api to fetch file content (base64) and decode
+              if content=$(gh api "repos/$owner_repo/contents/$f_path?ref=$f_ref" --jq '.content' 2>/dev/null); then
+                # gh outputs null for binary; handle safely
+                if [[ -n "$content" && "$content" != "null" ]]; then
+                  printf "%s" "$content" | base64 --decode > "$tmp_file"
+                else
+                  warn "files: gh returned no content for $owner_repo/$f_path@$f_ref — skipping"
+                  rm -f "$tmp_file"
+                  continue
+                fi
+              else
+                warn "files: gh api failed for $owner_repo/$f_path@$f_ref — skipping"
+                rm -f "$tmp_file"
+                continue
+              fi
+            else
+              warn "files: failed to fetch $f_fetch_url — skipping"
+              rm -f "$tmp_file"
+              continue
+            fi
           fi
         elif command -v wget >/dev/null 2>&1; then
           if ! wget -q "$f_fetch_url" -O "$tmp_file"; then
